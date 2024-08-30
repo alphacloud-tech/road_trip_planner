@@ -103,16 +103,18 @@ export default {
 
     totalDistance: {
       type: Number,
-      //   required: true, // Optional, but ensures the prop is passed
+      required: true, // Optional, but ensures the prop is passed
     },
     totalTime: {
       type: Number,
-      //   required: true,
+      required: true,
     },
     totalFuelNeeded: {
       type: Number,
-      //   required: true,
+      required: true,
     },
+
+    fetchDestinations: Function,
   },
   data() {
     return {
@@ -130,12 +132,6 @@ export default {
   },
   mounted() {
     this.initMap();
-    // Listen for points-found event
-    // Listen for points-found event
-    // eventBus.on("points-found", (poiList) => {
-    //   this.pointsOfInterest = poiList;
-    //   this.displayPOIsOnMap();
-    // });
     this.fetchPOIs();
   },
 
@@ -143,7 +139,8 @@ export default {
     destinations: {
       async handler() {
         await this.updateMap();
-        await this.fetchPOIs();
+        await nextTick();
+        // await this.fetchPOIs();
       },
       deep: true,
     },
@@ -155,19 +152,26 @@ export default {
 
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      }).addTo(this.map);
+      })
+        .addTo(this.map)
+        .openPopup();
 
       this.map.on("click", this.handleMapClick);
 
-      await this.updateMap();
-      await this.fetchPOIs();
+      //   await this.updateMap();
+      // Delay updateMap until the map is fully initialized
+
+      //   await nextTick();
+      this.map.whenReady(async () => {
+        this.updateMap();
+      });
     },
 
     handleMapClick(e) {
       const { lat, lng } = e.latlng;
       this.newDestination.latitude = lat;
       this.newDestination.longitude = lng;
-      this.showForm = true; // Show the form/modal to capture destination details
+      this.showForm = true;
     },
 
     closeForm() {
@@ -198,9 +202,8 @@ export default {
         this.newDestination = { name: "", latitude: "", longitude: "" };
 
         // Notify the parent component
-        // this.$emit("destination-added", { ...this.newDestination, id });
-        eventBus.emit("destination-added", this.newDestination);
 
+        this.fetchDestinations();
         // Optionally, close the form
         this.closeForm();
       } catch (error) {
@@ -215,12 +218,14 @@ export default {
       }
 
       // Clear existing markers and polylines
+
       this.map.eachLayer((layer) => {
         if (layer instanceof L.Marker || layer instanceof L.Polyline) {
           //   console.log("Removing layer:", layer);
           this.map.removeLayer(layer);
         }
       });
+
       //   console.log("LatLngs for markers:", this.destinations);
       // Add markers for each destination
       const latLngs = this.destinations
@@ -251,9 +256,6 @@ export default {
       await nextTick();
       //   const rawData = toRaw(this.distancesAndDurations);
       const rawData = JSON.parse(localStorage.getItem("distancesAndDurations")) || [];
-      //   console.log("LatLngs for markers by tofunmi:", this.distancesAndDurations);
-      //   console.log("LatLngs for markers by tofunmi: 456", rawData.length);
-
       // Draw polylines between destinations
 
       if (rawData && rawData.length > 0) {
@@ -261,8 +263,6 @@ export default {
         rawData.forEach((entry) => {
           const fromDest = this.destinations.find((dest) => dest.name === entry.from);
           const toDest = this.destinations.find((dest) => dest.name === entry.to);
-
-          console.log("entry:", this.totalDistance);
 
           if (fromDest && toDest) {
             const fromLatLng = [parseFloat(fromDest.latitude), parseFloat(fromDest.longitude)];
@@ -296,7 +296,7 @@ export default {
       }
 
       // Adjust map view to fit all markers
-      if (latLngs.length) {
+      if (latLngs.length && latLngs.length > 0) {
         const bounds = L.latLngBounds(latLngs);
         // console.log("Fitting map to bounds:", bounds);
         this.map.fitBounds(bounds);
@@ -305,33 +305,17 @@ export default {
       }
     },
 
-    // async displayPOIsOnMap() {
-    //   // Fetch POIs from local storage
-    //   //   const allPOIs = JSON.parse(localStorage.getItem("userInterests")) || [];
-    //   console.log("allPOIs Point", allPOIs);
-    //   await allPOIs.forEach((poi) => {
-    //     console.log("Adams Point", poi);
-    //     L.marker([poi.latitude, poi.longitude]).addTo(this.map).bindPopup(`<b>${poi.name}</b><br>${poi.category}`);
-    //   });
-    // },
-
-    // async fetchPOIs(interests) {
-    //   // Filter POIs based on user interests
-    //   this.filteredPOIs = this.allPointsOfInterest.filter((poi) => interests.includes(poi.category));
-    //   this.displayPOIsAlongRoute();
-    // },
-
     async fetchPOIs() {
       try {
         const response = await fetch("https://places-and-amenities.p.rapidapi.com/v1/places?lat1=48.3817&lon1=10.8728&limit=5&type=restaurant&lat2=48.3436&lon2=10.9301", {
           method: "GET",
           headers: {
-            "x-rapidapi-key": "3e7ec94b06mshb1a68ea31726312p10f83ajsn327bfd377d85", // Replace with your actual API key
+            "x-rapidapi-key": this.apiKey,
             "x-rapidapi-host": "places-and-amenities.p.rapidapi.com",
           },
         });
         const data = await response.json();
-        this.allPOIs = data.results || []; // Adjust based on actual response structure
+        this.allPOIs = data.results || [];
 
         console.log("Adjust based on actual response structure", data);
         this.displayPOIsOnMap();
@@ -339,15 +323,20 @@ export default {
         console.error("Failed to fetch POIs:", error);
       }
     },
-    
+
     displayPOIsOnMap() {
       this.allPOIs.forEach((poi) => {
-        L.marker([poi.latitude, poi.longitude]).addTo(this.map).bindPopup(`<b>${poi.name}</b><br>${poi.category}`);
+        L.marker([poi.latitude, poi.longitude]).addTo(this.map).bindPopup(`<b>${poi.name}</b><br>${poi.category}`).openPopup();
       });
     },
     beforeDestroy() {
       // Clean up event listeners
       eventBus.off("points-found");
+      if (this.map) {
+        this.map.off();
+        this.map.remove();
+        this.map = null;
+      }
     },
   },
 };

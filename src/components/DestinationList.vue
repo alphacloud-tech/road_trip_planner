@@ -6,10 +6,8 @@
           <div class="card">
             <div class="card-header">
               <h5 style="float: left">Destinations</h5>
-              <!-- <button @click="openAddDestination" class="btn btn-primary" style="float: right">Add Destination</button> -->
-              <button @click="openModal2" class="btn btn-primary m-2" style="float: right">POI</button>
-              <button @click="openModal" class="btn btn-primary m-2" style="float: right">Add Destination</button>
-              <!-- <button style="float: right" type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#exampleModal" data-bs-whatever="@mdo">Add Destination</button> -->
+              <!-- <button @click="openModal2" class="btn btn-primary m-2" style="float: right">POI</button> -->
+              <button @click="openModal" class="btn btn-primary" style="float: right">Add Destination</button>
             </div>
             <div class="card-body">
               <div class="row">
@@ -112,7 +110,8 @@
             </div>
             <div class="card-body">
               <div class="row">
-                <MapDisplay v-if="totalDistance !== undefined && totalTime !== undefined && totalFuelNeeded !== undefined" :destinations="destinations" :distancesAndDurations="distancesAndDurations" :totalDistance="totalDistance" :totalTime="totalTime" :totalFuelNeeded="totalFuelNeeded" :pois="filteredPOIs" @destination-added="handleDestinationAdded" />
+                <!-- <MapDisplay @new-destination-added="updateDestinations" /> -->
+                <MapDisplay v-if="totalDistance !== undefined && totalTime !== undefined && totalFuelNeeded !== undefined" :destinations="destinations" :distancesAndDurations="distancesAndDurations" :totalDistance="totalDistance" :totalTime="totalTime" :totalFuelNeeded="totalFuelNeeded" :fetchDestinations="fetchDestinations" :pois="filteredPOIs" @destination-added="handleDestinationAdded" />
               </div>
             </div>
           </div>
@@ -214,7 +213,19 @@ export default {
       longitudeError: null,
       fuelEfficiency: 15,
       averageSpeed: 60,
+
+      apiKey: process.env.VUE_APP_API_KEY,
+      apiUrl: process.env.VUE_APP_API_URL,
     };
+  },
+
+  watch: {
+    destinations: {
+      async handler() {
+        await this.calculateDistancesAndDurations();
+      },
+      deep: true,
+    },
   },
   methods: {
     fetchDestinations() {
@@ -229,7 +240,7 @@ export default {
           original: storedDistancesAndDurations,
         };
 
-        console.log("Fetched destinations from localStorage:", storedDistancesAndDurations);
+        // console.log("Fetched destinations from localStorage:", storedDistancesAndDurations);
         // console.log("Fetched distances and durations from localStorage:", this.distancesAndDurations);
       } catch (error) {
         console.error("Failed to fetch destinations from localStorage:", error);
@@ -423,7 +434,7 @@ export default {
               },
               headers: {
                 "x-rapidapi-host": "distance-calculator8.p.rapidapi.com",
-                "x-rapidapi-key": "3e7ec94b06mshb1a68ea31726312p10f83ajsn327bfd377d85", // Replace with your actual API key
+                "x-rapidapi-key": this.apiKey,
               },
             });
 
@@ -440,10 +451,9 @@ export default {
 
             // Step 2: Store the updated array in localStorage
             localStorage.setItem("distancesAndDurations", JSON.stringify(this.distancesAndDurations));
+
           }
         }
-
-        // console.log("Calculated distances and durations:", this.distancesAndDurations);
       } catch (error) {
         console.error("Failed to calculate distances and durations:", error);
       }
@@ -451,7 +461,7 @@ export default {
   },
   mounted() {
     this.fetchDestinations();
-    this.calculateDistancesAndDurations();
+    // this.calculateDistancesAndDurations();
   },
 
   computed: {
@@ -466,7 +476,6 @@ export default {
           return sum + distance;
         }, 0);
 
-        console.log("Total Distance Calculated:", total);
         return total;
       } else {
         console.log("No valid distances or empty array, returning 0");
